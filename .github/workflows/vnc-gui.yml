@@ -16,8 +16,12 @@ jobs:
           echo 'Ubuntu1' | vncpasswd -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
 
-      - name: Start VNC
-        run: vncserver :1 -geometry 1024x768 -depth 24 -xstartup xfce4-session
+      - name: Configure and start VNC
+        run: |
+          echo '#!/bin/bash' > ~/.vnc/xstartup
+          echo 'startxfce4' >> ~/.vnc/xstartup
+          chmod +x ~/.vnc/xstartup
+          vncserver :1 -geometry 1024x768 -depth 24
 
       - name: Install Ngrok
         run: |
