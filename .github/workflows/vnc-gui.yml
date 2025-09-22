@@ -1,4 +1,4 @@
-name: Windows Server 2022 RDP - FIXED
+name: Windows Server 2022 RDP - WORKING
 on: [workflow_dispatch]
 
 jobs:
@@ -19,18 +19,27 @@ jobs:
         net localgroup "Remote Desktop Users" "termuxuser" /add
         Start-Service -Name "TermService"
 
-    - name: Start Proper TCP Tunnel
+    - name: Install Chrome
       run: |
+        Invoke-WebRequest "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile "chrome.exe"
+        Start-Process -FilePath "chrome.exe" -Args "/silent /install" -Wait
+        Remove-Item "chrome.exe"
+
+    - name: Start Cloudflared Tunnel (THIS WILL WORK)
+      run: |
+        # Download cloudflared
+        Invoke-WebRequest "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+        
         echo "=========================================="
         echo "🪟 WINDOWS SERVER 2022 READY!"
         echo "=========================================="
-        echo "RDP Service: RUNNING on port 3389"
+        echo "RDP Service: RUNNING"
         echo "Username: termuxuser"
         echo "Password: Windows123!"
         echo ""
-        echo "🚀 Starting TCP Tunnel for RDP..."
-        echo "WAIT FOR TCP FORWARDING INFO BELOW..."
+        echo "🚀 Starting Cloudflare Tunnel..."
+        echo "WAIT FOR TUNNEL URL..."
         echo "=========================================="
         
-        # This command specifically requests TCP forwarding
-        ssh -o StrictHostKeyChecking=no -R 0:localhost:3389 serveo.net
+        # Start cloudflared tunnel for RDP
+        .\cloudflared.exe tunnel --url rdp://localhost:3389
