@@ -1,49 +1,32 @@
-name: Linux GUI via VNC
-on: workflow_dispatch
+name: Linux GUI on GitHub Actions
+
+on: [workflow_dispatch]
 
 jobs:
-  setup-vnc:
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Install GUI and VNC
+      - name: Install Desktop Environment and VNC
         run: |
-          sudo apt update
-          sudo apt install -y xfce4 xfce4-goodies tightvncserver jq
-
-      - name: Set VNC password
-        run: |
+          sudo apt-get update
+          sudo apt-get install -y xfce4 xfce4-goodies tightvncserver
+          echo "Setting up VNC server"
           mkdir -p ~/.vnc
-          echo 'Ubuntu1' | vncpasswd -f > ~/.vnc/passwd
-          chmod 600 ~/.vnc/passwd
-
-      - name: Configure and start VNC
-        run: |
           echo '#!/bin/bash' > ~/.vnc/xstartup
           echo 'startxfce4' >> ~/.vnc/xstartup
           chmod +x ~/.vnc/xstartup
-          vncserver :1 -geometry 1024x768 -depth 24
+          echo "Ubuntu1" | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
 
-      - name: Install Ngrok
-        run: |
-          wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
-          tar -xzf ngrok-v3-stable-linux-amd64.tgz
+      - name: Start VNC Server
+        run: vncserver :1
 
-      - name: Expose VNC with Ngrok
+      - name: Setup Pinggy Tunnel
         run: |
-          ./ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-          ./ngrok tcp 5901 > /dev/null &
-          sleep 5
-          curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' > ngrok_url.txt
-
-      - name: Print connection details
-        run: |
-          echo "=========================================="
           echo "CONNECT VIA VNC CLIENT TO:"
-          echo "$(cat ngrok_url.txt | sed 's/tcp:\/\///')"
           echo "Password: Ubuntu1"
           echo "=========================================="
           echo "This connection will work for 1 hour"
           echo "=========================================="
-
-      - name: Keep alive
-        run: sleep 3600
+          ssh -p 443 -R 0:localhost:5901 tcp@a.pinggy.io
