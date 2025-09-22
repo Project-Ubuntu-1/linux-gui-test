@@ -1,10 +1,10 @@
-name: Windows Server 2022 via RDP
+name: Windows Server 2022 via RDP (Fixed Tunnel)
 on: [workflow_dispatch]
 
 jobs:
   windows-rdp:
     runs-on: windows-latest
-    timeout-minutes: 360  # 6 hour max
+    timeout-minutes: 360
 
     steps:
     - name: Configure Windows RDP
@@ -13,50 +13,32 @@ jobs:
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         
-        # Set resolution for phone (portrait mode)
+        # Set resolution for phone
         Set-DisplayResolution -Width 720 -Height 1440 -Force
         
-        # Create user (if not exists)
+        # Create user
         $password = ConvertTo-SecureString "Windows123!" -AsPlainText -Force
         New-LocalUser -Name "termuxuser" -Password $password -FullName "Termux User" -Description "RDP User" -ErrorAction SilentlyContinue
         Add-LocalGroupMember -Group "Administrators" -Member "termuxuser"
         Add-LocalGroupMember -Group "Remote Desktop Users" -Member "termuxuser"
 
-    - name: Install Basic Software
+    - name: Install Node.js for LocalTunnel
       run: |
-        # Install Chrome (or Firefox)
-        $chromeInstaller = "chrome_installer.exe"
-        Invoke-WebRequest "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile $chromeInstaller
-        Start-Process -FilePath $chromeInstaller -Args "/silent /install" -Wait
-        Remove-Item $chromeInstaller
-        
-        # Install VS Code
-        $vscodeInstaller = "vscode_installer.exe"
-        Invoke-WebRequest "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64" -OutFile $vscodeInstaller
-        Start-Process -FilePath $vscodeInstaller -Args "/silent /mergetasks=!runcode" -Wait
-        Remove-Item $vscodeInstaller
+        # Install Node.js quickly
+        Invoke-WebRequest "https://nodejs.org/dist/v18.17.0/node-v18.17.0-x64.msi" -OutFile "nodejs.msi"
+        Start-Process msiexec -ArgumentList "/i nodejs.msi /quiet" -Wait
+        # Refresh PATH to make npm available
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        npm install -g localtunnel
 
-    - name: Start RDP Service
+    - name: Start RDP and Tunnel
       run: |
         Start-Service -Name "TermService"
-        Set-Service -Name "TermService" -StartupType Automatic
         echo "RDP Service started on port 3389"
-
-    - name: Create Windows Tunnel with Pinggy
-      run: |
-        # Download Plink (PuTTY command-line) for Windows
-        Invoke-WebRequest "https://the.earth.li/~sgtatham/putty/latest/w64/plink.exe" -OutFile "plink.exe"
-        
-        echo "=========================================="
-        echo "🪟 WINDOWS SERVER 2022 READY!"
-        echo "=========================================="
         echo "User: termuxuser"
         echo "Pass: Windows123!"
-        echo "Screen: 720x1440 (phone optimized)"
         echo ""
-        echo "🚀 Starting Pinggy tunnel..."
-        echo "WAIT 15-30 SECONDS FOR CONNECTION URL..."
-        echo "=========================================="
+        echo "🚀 Starting LocalTunnel..."
         
-        # Start tunnel to RDP port 3389
-        .\plink.exe -ssh -pw pinggy -R 0:localhost:3389 tcp@a.pinggy.io
+        # Start LocalTunnel for RDP port 3389
+        npx localtunnel --port 3389 --subdomain termux-windows-rdp
