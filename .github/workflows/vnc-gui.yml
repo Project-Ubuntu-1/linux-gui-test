@@ -1,0 +1,47 @@
+name: Linux GUI via VNC
+on: workflow_dispatch
+
+jobs:
+  setup-vnc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GUI and VNC
+        run: |
+          sudo apt update
+          sudo apt install -y xfce4 xfce4-goodies tightvncserver jq
+
+      - name: Set VNC password
+        run: |
+          mkdir -p ~/.vnc
+          echo 'mysecretvncpassword' | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+        env:
+          VNC_PASSWORD: "YOUR_VNC_PASSWORD_HERE"
+
+      - name: Start VNC
+        run: vncserver :1 -geometry 1024x768 -depth 24 -localhost no -xstartup xfce4-session
+
+      - name: Install Ngrok
+        run: |
+          wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+          tar -xzf ngrok-v3-stable-linux-amd64.tgz
+
+      - name: Expose VNC with Ngrok
+        run: |
+          ./ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          ./ngrok tcp 5901 > /dev/null &
+          sleep 5
+          curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' > ngrok_url.txt
+
+      - name: Print connection details
+        run: |
+          echo "=========================================="
+          echo "CONNECT VIA VNC CLIENT TO:"
+          echo "$(cat ngrok_url.txt | sed 's/tcp:\/\///')"
+          echo "Password: YOUR_VNC_PASSWORD_HERE"
+          echo "=========================================="
+          echo "This connection will work for 1 hour"
+          echo "=========================================="
+
+      - name: Keep alive
+        run: sleep 3600
