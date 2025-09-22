@@ -1,4 +1,4 @@
-name: Windows Server 2022 RDP
+name: Windows Server 2022 RDP - FIXED
 on: [workflow_dispatch]
 
 jobs:
@@ -13,37 +13,24 @@ jobs:
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         
-        # Don't set custom resolution - use default
         # Create user
         net user termuxuser "Windows123!" /add
         net localgroup "Administrators" "termuxuser" /add
         net localgroup "Remote Desktop Users" "termuxuser" /add
-
-    - name: Install Chrome
-      run: |
-        $chromeInstaller = "chrome_installer.exe"
-        Invoke-WebRequest "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile $chromeInstaller
-        Start-Process -FilePath $chromeInstaller -Args "/silent /install" -Wait
-        Remove-Item $chromeInstaller
-
-    - name: Install Serveo Tunnel (Works with RDP)
-      run: |
-        # Install OpenSSH client
-        Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
-        
-        # Start RDP service
         Start-Service -Name "TermService"
-        
+
+    - name: Start Proper TCP Tunnel
+      run: |
         echo "=========================================="
         echo "🪟 WINDOWS SERVER 2022 READY!"
         echo "=========================================="
-        echo "RDP Service: RUNNING"
+        echo "RDP Service: RUNNING on port 3389"
         echo "Username: termuxuser"
         echo "Password: Windows123!"
         echo ""
-        echo "🚀 Starting Serveo Tunnel (TCP for RDP)..."
-        echo "WAIT FOR TUNNEL URL BELOW..."
+        echo "🚀 Starting TCP Tunnel for RDP..."
+        echo "WAIT FOR TCP FORWARDING INFO BELOW..."
         echo "=========================================="
         
-        # Serveo gives proper TCP tunnel for RDP
-        ssh -o StrictHostKeyChecking=no -R 80:localhost:3389 serveo.net
+        # This command specifically requests TCP forwarding
+        ssh -o StrictHostKeyChecking=no -R 0:localhost:3389 serveo.net
