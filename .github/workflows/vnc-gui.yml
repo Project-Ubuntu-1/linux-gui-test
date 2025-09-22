@@ -13,10 +13,8 @@ jobs:
       - name: Set VNC password
         run: |
           mkdir -p ~/.vnc
-          echo 'mysecretvncpassword' | vncpasswd -f > ~/.vnc/passwd
+          echo 'Ubuntu1' | vncpasswd -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
-        env:
-          VNC_PASSWORD: "Ubuntu1"
 
       - name: Start VNC
         run: vncserver :1 -geometry 1024x768 -depth 24 -localhost no -xstartup xfce4-session
