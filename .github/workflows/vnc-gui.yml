@@ -1,4 +1,4 @@
-name: Windows Server 2022 via RDP (Fixed Tunnel)
+name: Windows Server 2022 RDP
 on: [workflow_dispatch]
 
 jobs:
@@ -13,32 +13,77 @@ jobs:
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         
-        # Set resolution for phone
+        # Set phone-optimized resolution
         Set-DisplayResolution -Width 720 -Height 1440 -Force
         
-        # Create user
+        # Create user with password
         $password = ConvertTo-SecureString "Windows123!" -AsPlainText -Force
         New-LocalUser -Name "termuxuser" -Password $password -FullName "Termux User" -Description "RDP User" -ErrorAction SilentlyContinue
         Add-LocalGroupMember -Group "Administrators" -Member "termuxuser"
         Add-LocalGroupMember -Group "Remote Desktop Users" -Member "termuxuser"
 
-    - name: Install Node.js for LocalTunnel
+    - name: Install Chrome and VS Code
       run: |
-        # Install Node.js quickly
-        Invoke-WebRequest "https://nodejs.org/dist/v18.17.0/node-v18.17.0-x64.msi" -OutFile "nodejs.msi"
-        Start-Process msiexec -ArgumentList "/i nodejs.msi /quiet" -Wait
-        # Refresh PATH to make npm available
+        # Install Chrome silently
+        $chromeInstaller = "chrome_installer.exe"
+        Invoke-WebRequest "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile $chromeInstaller
+        Start-Process -FilePath $chromeInstaller -Args "/silent /install" -Wait
+        Remove-Item $chromeInstaller
+        
+        # Install VS Code silently
+        $vscodeInstaller = "vscode_installer.exe"
+        Invoke-WebRequest "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64" -OutFile $vscodeInstaller
+        Start-Process -FilePath $vscodeInstaller -Args "/silent /mergetasks=!runcode" -Wait
+        Remove-Item $vscodeInstaller
+
+    - name: Install Node.js and LocalTunnel
+      run: |
+        # Install Node.js
+        $nodeInstaller = "nodejs.msi"
+        Invoke-WebRequest "https://nodejs.org/dist/v18.17.0/node-v18.17.0-x64.msi" -OutFile $nodeInstaller
+        Start-Process msiexec -ArgumentList "/i $nodeInstaller /quiet" -Wait
+        Remove-Item $nodeInstaller
+        
+        # Refresh environment variables to make npm available
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        
+        # Install LocalTunnel globally
         npm install -g localtunnel
 
-    - name: Start RDP and Tunnel
+    - name: Start RDP Service and Tunnel
       run: |
+        # Start RDP service
         Start-Service -Name "TermService"
-        echo "RDP Service started on port 3389"
-        echo "User: termuxuser"
-        echo "Pass: Windows123!"
-        echo ""
-        echo "🚀 Starting LocalTunnel..."
+        Set-Service -Name "TermService" -StartupType Automatic
         
-        # Start LocalTunnel for RDP port 3389
+        # Verify RDP is running
+        Start-Sleep -Seconds 5
+        $rdpStatus = Get-Service -Name "TermService"
+        if ($rdpStatus.Status -ne "Running") {
+            throw "RDP service failed to start"
+        }
+        
+        # Verify port 3389 is listening
+        $portCheck = netstat -an | findstr ":3389"
+        if (-not $portCheck) {
+            throw "RDP port 3389 is not listening"
+        }
+        
+        Write-Output "=========================================="
+        Write-Output "🪟 WINDOWS SERVER 2022 READY!"
+        Write-Output "=========================================="
+        Write-Output "RDP Service: RUNNING"
+        Write-Output "Port 3389: LISTENING"
+        Write-Output ""
+        Write-Output "📱 CONNECTION DETAILS:"
+        Write-Output "PC Name: termux-windows-rdp.loca.lt:3389"
+        Write-Output "Username: termuxuser"
+        Write-Output "Password: Windows123!"
+        Write-Output "Resolution: 720x1440"
+        Write-Output ""
+        Write-Output "🚀 Starting LocalTunnel..."
+        Write-Output "Wait for tunnel URL..."
+        Write-Output "=========================================="
+        
+        # Start LocalTunnel with fixed subdomain
         npx localtunnel --port 3389 --subdomain termux-windows-rdp
