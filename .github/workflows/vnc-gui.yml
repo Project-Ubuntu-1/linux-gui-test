@@ -1,5 +1,4 @@
-name: Linux GUI on GitHub Actions
-
+name: GNOME Desktop via RDP
 on: [workflow_dispatch]
 
 jobs:
@@ -7,26 +6,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install Desktop Environment and VNC
+      - name: Install GNOME Desktop and RDP
         run: |
           sudo apt-get update
-          sudo apt-get install -y xfce4 xfce4-goodies tightvncserver
-          echo "Setting up VNC server"
-          mkdir -p ~/.vnc
-          echo '#!/bin/bash' > ~/.vnc/xstartup
-          echo 'startxfce4' >> ~/.vnc/xstartup
-          chmod +x ~/.vnc/xstartup
-          echo "Ubuntu1" | vncpasswd -f > ~/.vnc/passwd
-          chmod 600 ~/.vnc/passwd
+          sudo apt-get install -y ubuntu-desktop-minimal
+          sudo apt-get install -y xrdp
+          
+          # Fix GNOME for RDP
+          sudo sed -i 's/port=3389/port=3390/g' /etc/xrdp/xrdp.ini
+          echo "gnome-session" > ~/.xsession
+          sudo systemctl enable xrdp
+          sudo systemctl start xrdp
 
-      - name: Start VNC Server
-        run: vncserver :1
-
-      - name: Setup Pinggy Tunnel
+      - name: Create RDP User
         run: |
-          echo "CONNECT VIA VNC CLIENT TO:"
-          echo "Password: Ubuntu1"
+          sudo adduser rduser --gecos "" --disabled-password
+          echo "rduser:Ubuntu123" | sudo chpasswd
+          sudo usermod -aG sudo rduser
+
+      - name: Start RDP Server
+        run: |
+          sudo systemctl restart xrdp
+          echo "RDP Server started on port 3390"
+
+      - name: Setup Pinggy Tunnel for RDP
+        run: |
           echo "=========================================="
-          echo "This connection will work for 1 hour"
+          echo "🎨 GNOME DESKTOP READY FOR ARDP APP!"
           echo "=========================================="
-          ssh -o StrictHostKeyChecking=no -p 443 -R 0:localhost:5901 tcp@a.pinggy.io
+          echo "📱 IN ARDP APP USE THESE SETTINGS:"
+          echo ""
+          echo "Wait for Pinggy to show your connection URL..."
+          echo "It will look like: tcp://tlw0.pinggy.link:12345"
+          echo ""
+          echo "🔧 ARDP CONNECTION SETUP:"
+          echo "PC Name: [Copy the Pinggy address below]"
+          echo "User Name: rduser"
+          echo "Password: Ubuntu123"
+          echo ""
+          echo "⏰ This connection lasts 1 hour"
+          echo "=========================================="
+          
+          # Start Pinggy tunnel for RDP
+          ssh -o StrictHostKeyChecking=no -p 443 -R 0:localhost:3390 tcp@a.pinggy.io
