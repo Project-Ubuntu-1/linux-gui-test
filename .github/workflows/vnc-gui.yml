@@ -16,7 +16,7 @@ jobs:
           echo 'mysecretvncpassword' | vncpasswd -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
         env:
-          VNC_PASSWORD: "YOUR_VNC_PASSWORD_HERE"
+          VNC_PASSWORD: "Ubuntu1"
 
       - name: Start VNC
         run: vncserver :1 -geometry 1024x768 -depth 24 -localhost no -xstartup xfce4-session
@@ -38,7 +38,7 @@ jobs:
           echo "=========================================="
           echo "CONNECT VIA VNC CLIENT TO:"
           echo "$(cat ngrok_url.txt | sed 's/tcp:\/\///')"
-          echo "Password: YOUR_VNC_PASSWORD_HERE"
+          echo "Password: Ubuntu1"
           echo "=========================================="
           echo "This connection will work for 1 hour"
           echo "=========================================="
