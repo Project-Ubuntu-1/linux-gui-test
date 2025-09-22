@@ -9,43 +9,55 @@ jobs:
       - name: Install GNOME Desktop and RDP
         run: |
           sudo apt-get update
-          sudo apt-get install -y ubuntu-desktop-minimal
-          sudo apt-get install -y xrdp
+          # Fix potential package issues first
+          sudo apt-get install -f -y
+          # Install GNOME and RDP
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop-minimal xrdp
           
-          # Fix GNOME for RDP
+          # Configure RDP for your phone resolution
           sudo sed -i 's/port=3389/port=3390/g' /etc/xrdp/xrdp.ini
+          sudo sed -i 's/width=1920/width=720/g' /etc/xrdp/xrdp.ini
+          sudo sed -i 's/height=1080/height=1440/g' /etc/xrdp/xrdp.ini  # Adjusted for RDP aspect ratio
+          
           echo "gnome-session" > ~/.xsession
           sudo systemctl enable xrdp
-          sudo systemctl start xrdp
 
-      - name: Create RDP User
+      - name: Create RDP User (Skip if exists)
         run: |
-          sudo adduser rduser --gecos "" --disabled-password
-          echo "rduser:Ubuntu123" | sudo chpasswd
-          sudo usermod -aG sudo rduser
+          if id "rduser" &>/dev/null; then
+            echo "User rduser already exists"
+          else
+            sudo adduser rduser --gecos "" --disabled-password
+            echo "rduser:Ubuntu123" | sudo chpasswd
+            sudo usermod -aG sudo rduser
+          fi
 
-      - name: Start RDP Server
+      - name: Fix GNOME Permissions
+        run: |
+          sudo mkdir -p /home/rduser
+          sudo chown rduser:rduser /home/rduser
+          sudo cp ~/.xsession /home/rduser/
+          sudo chown rduser:rduser /home/rduser/.xsession
+
+      - name: Start and Verify RDP Server
         run: |
           sudo systemctl restart xrdp
-          echo "RDP Server started on port 3390"
+          sudo systemctl status xrdp --no-pager -l
+          echo "RDP Server running on port 3390"
+          echo "Screen resolution set to: 720x1440 (optimized for 720x1612 phone)"
 
       - name: Setup Pinggy Tunnel for RDP
         run: |
           echo "=========================================="
-          echo "🎨 GNOME DESKTOP READY FOR ARDP APP!"
+          echo "📱 PHONE-OPTIMIZED GNOME DESKTOP READY!"
           echo "=========================================="
-          echo "📱 IN ARDP APP USE THESE SETTINGS:"
+          echo "Screen: 720x1440 (perfect for 720x1612)"
+          echo "User: rduser"
+          echo "Pass: Ubuntu123"
           echo ""
-          echo "Wait for Pinggy to show your connection URL..."
-          echo "It will look like: tcp://tlw0.pinggy.link:12345"
-          echo ""
-          echo "🔧 ARDP CONNECTION SETUP:"
-          echo "PC Name: [Copy the Pinggy address below]"
-          echo "User Name: rduser"
-          echo "Password: Ubuntu123"
-          echo ""
-          echo "⏰ This connection lasts 1 hour"
+          echo "🚀 Starting Pinggy tunnel..."
+          echo "WAIT 10-20 SECONDS FOR CONNECTION URL..."
           echo "=========================================="
           
-          # Start Pinggy tunnel for RDP
-          ssh -o StrictHostKeyChecking=no -p 443 -R 0:localhost:3390 tcp@a.pinggy.io
+          # Start Pinggy with better error handling
+          timeout 3600 ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -p 443 -R 0:localhost:3390 tcp@a.pinggy.io
