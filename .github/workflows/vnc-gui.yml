@@ -1,63 +1,62 @@
-name: GNOME Desktop via RDP
+name: Windows Server 2022 via RDP
 on: [workflow_dispatch]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  windows-rdp:
+    runs-on: windows-latest
+    timeout-minutes: 360  # 6 hour max
 
     steps:
-      - name: Install GNOME Desktop and RDP
-        run: |
-          sudo apt-get update
-          # Fix potential package issues first
-          sudo apt-get install -f -y
-          # Install GNOME and RDP
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop-minimal xrdp
-          
-          # Configure RDP for your phone resolution
-          sudo sed -i 's/port=3389/port=3390/g' /etc/xrdp/xrdp.ini
-          sudo sed -i 's/width=1920/width=720/g' /etc/xrdp/xrdp.ini
-          sudo sed -i 's/height=1080/height=1440/g' /etc/xrdp/xrdp.ini  # Adjusted for RDP aspect ratio
-          
-          echo "gnome-session" > ~/.xsession
-          sudo systemctl enable xrdp
+    - name: Configure Windows RDP
+      run: |
+        # Enable RDP
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        
+        # Set resolution for phone (portrait mode)
+        Set-DisplayResolution -Width 720 -Height 1440 -Force
+        
+        # Create user (if not exists)
+        $password = ConvertTo-SecureString "Windows123!" -AsPlainText -Force
+        New-LocalUser -Name "termuxuser" -Password $password -FullName "Termux User" -Description "RDP User" -ErrorAction SilentlyContinue
+        Add-LocalGroupMember -Group "Administrators" -Member "termuxuser"
+        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "termuxuser"
 
-      - name: Create RDP User (Skip if exists)
-        run: |
-          if id "rduser" &>/dev/null; then
-            echo "User rduser already exists"
-          else
-            sudo adduser rduser --gecos "" --disabled-password
-            echo "rduser:Ubuntu123" | sudo chpasswd
-            sudo usermod -aG sudo rduser
-          fi
+    - name: Install Basic Software
+      run: |
+        # Install Chrome (or Firefox)
+        $chromeInstaller = "chrome_installer.exe"
+        Invoke-WebRequest "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile $chromeInstaller
+        Start-Process -FilePath $chromeInstaller -Args "/silent /install" -Wait
+        Remove-Item $chromeInstaller
+        
+        # Install VS Code
+        $vscodeInstaller = "vscode_installer.exe"
+        Invoke-WebRequest "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64" -OutFile $vscodeInstaller
+        Start-Process -FilePath $vscodeInstaller -Args "/silent /mergetasks=!runcode" -Wait
+        Remove-Item $vscodeInstaller
 
-      - name: Fix GNOME Permissions
-        run: |
-          sudo mkdir -p /home/rduser
-          sudo chown rduser:rduser /home/rduser
-          sudo cp ~/.xsession /home/rduser/
-          sudo chown rduser:rduser /home/rduser/.xsession
+    - name: Start RDP Service
+      run: |
+        Start-Service -Name "TermService"
+        Set-Service -Name "TermService" -StartupType Automatic
+        echo "RDP Service started on port 3389"
 
-      - name: Start and Verify RDP Server
-        run: |
-          sudo systemctl restart xrdp
-          sudo systemctl status xrdp --no-pager -l
-          echo "RDP Server running on port 3390"
-          echo "Screen resolution set to: 720x1440 (optimized for 720x1612 phone)"
-
-      - name: Setup Pinggy Tunnel for RDP
-        run: |
-          echo "=========================================="
-          echo "📱 PHONE-OPTIMIZED GNOME DESKTOP READY!"
-          echo "=========================================="
-          echo "Screen: 720x1440 (perfect for 720x1612)"
-          echo "User: rduser"
-          echo "Pass: Ubuntu123"
-          echo ""
-          echo "🚀 Starting Pinggy tunnel..."
-          echo "WAIT 10-20 SECONDS FOR CONNECTION URL..."
-          echo "=========================================="
-          
-          # Start Pinggy with better error handling
-          timeout 3600 ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -p 443 -R 0:localhost:3390 tcp@a.pinggy.io
+    - name: Create Windows Tunnel with Pinggy
+      run: |
+        # Download Plink (PuTTY command-line) for Windows
+        Invoke-WebRequest "https://the.earth.li/~sgtatham/putty/latest/w64/plink.exe" -OutFile "plink.exe"
+        
+        echo "=========================================="
+        echo "🪟 WINDOWS SERVER 2022 READY!"
+        echo "=========================================="
+        echo "User: termuxuser"
+        echo "Pass: Windows123!"
+        echo "Screen: 720x1440 (phone optimized)"
+        echo ""
+        echo "🚀 Starting Pinggy tunnel..."
+        echo "WAIT 15-30 SECONDS FOR CONNECTION URL..."
+        echo "=========================================="
+        
+        # Start tunnel to RDP port 3389
+        .\plink.exe -ssh -pw pinggy -R 0:localhost:3389 tcp@a.pinggy.io
