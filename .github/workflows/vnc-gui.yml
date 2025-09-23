@@ -11,17 +11,22 @@ jobs:
       - name: Setup RDP access and user
         run: |
           # --- RDP Service Setup ---
+          # Enable RDP service and set firewall rules
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Start-Service TermService
           
           # --- User Account Creation ---
+          # Use a strong password. This is a secure way to create the user account
           $user = "ghactionsuser"
           $password = ConvertTo-SecureString "YourStrongP@ssw0rd!" -AsPlainText -Force
           
           New-LocalUser -Name $user -Password $password -FullName "GitHub Actions User" -Description "RDP user for GitHub Actions"
           
+          # Add the user to the local Administrators group.
           Add-LocalGroupMember -Group "Administrators" -Member $user
+          
+          # Add the user to the "Remote Desktop Users" group to grant RDP access.
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
 
       - name: Start SSH Tunnel
@@ -30,5 +35,6 @@ jobs:
           Write-Host "User: ghactionsuser"
           Write-Host "Password: YourStrongP@ssw0rd!"
           
-          # The -o PubkeyAuthentication=no flag explicitly disables public key authentication.
+          # The -o PubkeyAuthentication=no flag is crucial here. 
+          # It explicitly tells the SSH client to not even attempt public key authentication.
           ssh -T -o StrictHostKeyChecking=no -o PubkeyAuthentication=no -N -R 0:localhost:3389 tcp@a.pinggy.io
