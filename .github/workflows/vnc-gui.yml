@@ -11,27 +11,17 @@ jobs:
       - name: Setup RDP access and user
         run: |
           # --- RDP Service Setup ---
-          # Enable RDP service and set firewall rules
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Start-Service TermService
           
           # --- User Account Creation ---
-          # Use a strong password. This is a secure way to create the user account
-          # using PowerShell's built-in cmdlets, which do not have the 14-character limit.
           $user = "ghactionsuser"
           $password = ConvertTo-SecureString "YourStrongP@ssw0rd!" -AsPlainText -Force
           
-          # Create the local user account and set the password.
-          # The -NoPasswordEx argument is to suppress the password prompt on some systems,
-          # though ConvertTo-SecureString handles it for us.
           New-LocalUser -Name $user -Password $password -FullName "GitHub Actions User" -Description "RDP user for GitHub Actions"
           
-          # Add the user to the local Administrators group.
-          # This must be done after the user is created.
           Add-LocalGroupMember -Group "Administrators" -Member $user
-          
-          # Add the user to the "Remote Desktop Users" group to grant RDP access.
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
 
       - name: Start SSH Tunnel
@@ -40,6 +30,9 @@ jobs:
           Write-Host "User: ghactionsuser"
           Write-Host "Password: YourStrongP@ssw0rd!"
           
-          # This command will block, keeping the GitHub Actions job running.
-          # The connection details will be printed to the logs.
-          ssh -o StrictHostKeyChecking=no -N -R 0:localhost:3389 tcp@a.pinggy.io
+          # This command creates a tunnel using a persistent service like Pinggy.
+          # The -T option disables pseudo-terminal allocation, which can cause issues.
+          # The -N option prevents remote command execution.
+          # The -R option forwards the remote port (0) to the local RDP port (3389).
+          # This command will hold the job open for as long as the SSH connection is active.
+          ssh -T -o StrictHostKeyChecking=no -N -R 0:localhost:3389 tcp@a.pinggy.io
