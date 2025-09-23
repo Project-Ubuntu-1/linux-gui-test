@@ -8,38 +8,37 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Setup RDP access
+      - name: Setup RDP access and user
         run: |
-          # Set the RDP port to a common value, 3389.
-          # The SSH tunnel will forward this port.
+          # --- RDP Service Setup ---
+          # Enable RDP service and set firewall rules
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Start-Service TermService
           
-          # Create a new local user for RDP access.
-          # Use a strong password and remember it.
-          $user = "ghauser"
-          $pass = "YourStrongP@ssw0rd!"
+          # --- User Account Creation ---
+          # Use a strong password. This is a secure way to create the user account
+          # using PowerShell's built-in cmdlets, which do not have the 14-character limit.
+          $user = "ghactionsuser"
+          $password = ConvertTo-SecureString "YourStrongP@ssw0rd!" -AsPlainText -Force
           
-          net user $user $pass /add
-          net localgroup administrators $user /add
-          net localgroup "Remote Desktop Users" $user /add
+          # Create the local user account and set the password.
+          # The -NoPasswordEx argument is to suppress the password prompt on some systems,
+          # though ConvertTo-SecureString handles it for us.
+          New-LocalUser -Name $user -Password $password -FullName "GitHub Actions User" -Description "RDP user for GitHub Actions"
+          
+          # Add the user to the local Administrators group.
+          # This must be done after the user is created.
+          Add-LocalGroupMember -Group "Administrators" -Member $user
+          
+          # Add the user to the "Remote Desktop Users" group to grant RDP access.
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
 
       - name: Start SSH Tunnel
         run: |
-          # Install the SSH client if not present (it is by default on Windows runners).
-          # It's good practice to ensure it's there.
-          if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
-            Write-Host "SSH client not found. This step might fail."
-          }
-
-          # This command creates a persistent tunnel using pinggy.io.
-          # It forwards the local RDP port (3389) to a publicly accessible host.
-          # The job will remain active as long as this connection is live.
-          # The output will provide the RDP address you need to connect.
-          Write-Output "🎯 RDP is now active and ready for connection!"
-          Write-Output "User: ghauser"
-          Write-Output "Password: YourStrongP@ssw0rd!"
+          Write-Host "🎯 RDP is now active and ready for connection!"
+          Write-Host "User: ghactionsuser"
+          Write-Host "Password: YourStrongP@ssw0rd!"
           
           # This command will block, keeping the GitHub Actions job running.
           # The connection details will be printed to the logs.
