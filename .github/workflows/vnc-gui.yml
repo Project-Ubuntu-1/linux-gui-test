@@ -1,43 +1,46 @@
-name: Real Windows Desktop
-on: [workflow_dispatch]
+name: RDP Access to Windows VM
+
+on:
+  workflow_dispatch:
 
 jobs:
-  windows-gui:
+  rdp:
     runs-on: windows-latest
-    
+
     steps:
-    - name: Enable GUI Features
-      run: |
-        # Windows Server comes with minimal GUI - let's enhance it
-        Install-WindowsFeature Desktop-Experience
-        
-        # Install Windows 10-like theme and features
-        winget install Microsoft.WindowsTerminal
-        winget install Microsoft.PowerToys
+      - name: Setup RDP access
+        run: |
+          # Set the RDP port to a common value, 3389.
+          # The SSH tunnel will forward this port.
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Start-Service TermService
+          
+          # Create a new local user for RDP access.
+          # Use a strong password and remember it.
+          $user = "ghauser"
+          $pass = "YourStrongP@ssw0rd!"
+          
+          net user $user $pass /add
+          net localgroup administrators $user /add
+          net localgroup "Remote Desktop Users" $user /add
 
-    - name: Configure Windows Desktop
-      run: |
-        # Set up Windows Explorer properly
-        reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "LaunchTo" /t REG_DWORD /d 1 /f
-        
-        # Enable sound (if needed)
-        Start-Service Audiosrv
-        Set-Service Audiosrv -StartupType Automatic
+      - name: Start SSH Tunnel
+        run: |
+          # Install the SSH client if not present (it is by default on Windows runners).
+          # It's good practice to ensure it's there.
+          if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
+            Write-Host "SSH client not found. This step might fail."
+          }
 
-    - name: Start RDP Service
-      run: |
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-        Start-Service TermService
-        
-        # Create user with proper permissions
-        $password = ConvertTo-SecureString "Windows123!" -AsPlainText -Force
-        New-LocalUser -Name "winuser" -Password $password -FullName "Windows User"
-        Add-LocalGroupMember -Group "Administrators" -Member "winuser"
-        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "winuser"
-
-    - name: Expose via Pinggy
-      run: |
-        Write-Output "🎯 WINDOWS DESKTOP READY FOR RDP!"
-        Write-Output "Waiting for Pinggy tunnel..."
-        ssh -o StrictHostKeyChecking=no -R 0:localhost:3389 tcp@a.pinggy.io
+          # This command creates a persistent tunnel using pinggy.io.
+          # It forwards the local RDP port (3389) to a publicly accessible host.
+          # The job will remain active as long as this connection is live.
+          # The output will provide the RDP address you need to connect.
+          Write-Output "🎯 RDP is now active and ready for connection!"
+          Write-Output "User: ghauser"
+          Write-Output "Password: YourStrongP@ssw0rd!"
+          
+          # This command will block, keeping the GitHub Actions job running.
+          # The connection details will be printed to the logs.
+          ssh -o StrictHostKeyChecking=no -N -R 0:localhost:3389 tcp@a.pinggy.io
