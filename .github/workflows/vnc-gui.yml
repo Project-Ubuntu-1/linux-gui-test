@@ -1,63 +1,43 @@
-name: Windows RDP - Multiple Tunnels
+name: Real Windows Desktop
 on: [workflow_dispatch]
 
 jobs:
-  windows-rdp:
+  windows-gui:
     runs-on: windows-latest
-    timeout-minutes: 240
-
+    
     steps:
-    - name: Setup RDP
+    - name: Enable GUI Features
       run: |
-        # Enable RDP
+        # Windows Server comes with minimal GUI - let's enhance it
+        Install-WindowsFeature Desktop-Experience
+        
+        # Install Windows 10-like theme and features
+        winget install Microsoft.WindowsTerminal
+        winget install Microsoft.PowerToys
+
+    - name: Configure Windows Desktop
+      run: |
+        # Set up Windows Explorer properly
+        reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "LaunchTo" /t REG_DWORD /d 1 /f
+        
+        # Enable sound (if needed)
+        Start-Service Audiosrv
+        Set-Service Audiosrv -StartupType Automatic
+
+    - name: Start RDP Service
+      run: |
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Start-Service TermService
         
-        # Create user
-        net user rdpuser "Pass123!" /add
-        net localgroup "Administrators" "rdpuser" /add
-        net localgroup "Remote Desktop Users" "rdpuser" /add
-        
-        Start-Service "TermService"
-        Write-Output "✅ RDP Ready on port 3389"
+        # Create user with proper permissions
+        $password = ConvertTo-SecureString "Windows123!" -AsPlainText -Force
+        New-LocalUser -Name "winuser" -Password $password -FullName "Windows User"
+        Add-LocalGroupMember -Group "Administrators" -Member "winuser"
+        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "winuser"
 
-    - name: Download Tunnel Tools
+    - name: Expose via Pinggy
       run: |
-        # Download multiple tunnel clients
-        Invoke-WebRequest "https://github.com/mmatczuk/go-http-tunnel/releases/download/2.1/http-tunnel-windows-64bit.exe" -OutFile "tunnel.exe"
-        Invoke-WebRequest "https://github.com/localtunnel/localtunnel/releases/download/v2.0.2/lt-windows.exe" -OutFile "lt.exe"
-        
-    - name: Try localhost.run (Primary)
-      run: |
-        Write-Output "🔗 PRIMARY: localhost.run (SSH Tunnel)"
-        Write-Output "This is the most reliable free service"
-        timeout 300 ssh -o StrictHostKeyChecking=no -R 80:localhost:3389 localhost.run
-
-    - name: Try Serveo.net (Backup)
-      if: always()
-      run: |
-        Write-Output "🔗 BACKUP: serveo.net"
-        timeout 300 ssh -o StrictHostKeyChecking=no -R 0:localhost:3389 serveo.net
-
-    - name: Manual Instructions
-      run: |
-        Write-Output "=========================================="
-        Write-Output "🔧 MANUAL TUNNEL OPTIONS"
-        Write-Output "=========================================="
-        Write-Output ""
-        Write-Output "If automatic tunnels fail, run these manually:"
-        Write-Output ""
-        Write-Output "1. localhost.run (BEST):"
-        Write-Output "   ssh -R 80:localhost:3389 localhost.run"
-        Write-Output ""
-        Write-Output "2. Serveo.net:"
-        Write-Output "   ssh -R 0:localhost:3389 serveo.net"
-        Write-Output ""
-        Write-Output "3. LocalTunnel:"
-        Write-Output "   npx localtunnel --port 3389"
-        Write-Output ""
-        Write-Output "📱 RDP CONNECTION INFO:"
-        Write-Output "   Computer: [tunnel-url-from-above]"
-        Write-Output "   Username: rdpuser"
-        Write-Output "   Password: Pass123!"
-        Write-Output "=========================================="
+        Write-Output "🎯 WINDOWS DESKTOP READY FOR RDP!"
+        Write-Output "Waiting for Pinggy tunnel..."
+        ssh -o StrictHostKeyChecking=no -R 0:localhost:3389 tcp@a.pinggy.io
