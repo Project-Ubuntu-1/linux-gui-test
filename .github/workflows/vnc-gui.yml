@@ -1,64 +1,63 @@
-name: Windows RDP - Free Tunnel
+name: Windows RDP - Multiple Tunnels
 on: [workflow_dispatch]
 
 jobs:
   windows-rdp:
     runs-on: windows-latest
-    timeout-minutes: 360
+    timeout-minutes: 240
 
     steps:
-    - name: Setup RDP and User
+    - name: Setup RDP
       run: |
         # Enable RDP
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         
-        # Create user with proper permissions
-        $password = "Pass123!"
-        net user rdpuser $password /add /Y
+        # Create user
+        net user rdpuser "Pass123!" /add
         net localgroup "Administrators" "rdpuser" /add
         net localgroup "Remote Desktop Users" "rdpuser" /add
         
-        # Set password to never expire
-        WMIC USERACCOUNT WHERE "Name='rdpuser'" SET PasswordExpires=FALSE
-        
-        # Start RDP service
         Start-Service "TermService"
-        Set-Service "TermService" -StartupType Automatic
-        
-        Write-Output "RDP configured on port 3389"
-        Write-Output "Username: rdpuser"
-        Write-Output "Password: $password"
+        Write-Output "✅ RDP Ready on port 3389"
 
-    - name: Install and Configure Free Tunnel
+    - name: Download Tunnel Tools
       run: |
-        # Method 1: Try localhost.run (SSH tunnel) - Most reliable
-        Write-Output "=== OPTION 1: localhost.run (SSH Tunnel) ==="
+        # Download multiple tunnel clients
+        Invoke-WebRequest "https://github.com/mmatczuk/go-http-tunnel/releases/download/2.1/http-tunnel-windows-64bit.exe" -OutFile "tunnel.exe"
+        Invoke-WebRequest "https://github.com/localtunnel/localtunnel/releases/download/v2.0.2/lt-windows.exe" -OutFile "lt.exe"
         
-        # Install OpenSSH client if not present
-        Get-WindowsCapability -Online | Where-Object Name -like 'OpenSSH.Client*' | Add-WindowsCapability -Online
-        
-        Write-Output "SSH tunnel will be established in next step"
+    - name: Try localhost.run (Primary)
+      run: |
+        Write-Output "🔗 PRIMARY: localhost.run (SSH Tunnel)"
+        Write-Output "This is the most reliable free service"
+        timeout 300 ssh -o StrictHostKeyChecking=no -R 80:localhost:3389 localhost.run
 
-    - name: Start localhost.run Tunnel (Most Reliable)
+    - name: Try Serveo.net (Backup)
+      if: always()
       run: |
-        # localhost.run - Free, no signup, works great
-        Write-Output "🚀 Starting localhost.run tunnel..."
-        Write-Output "This will show your public RDP URL in 10-20 seconds"
-        Write-Output "Waiting for tunnel..."
-        
-        ssh -o StrictHostKeyChecking=no -R 80:localhost:3389 localhost.run
+        Write-Output "🔗 BACKUP: serveo.net"
+        timeout 300 ssh -o StrictHostKeyChecking=no -R 0:localhost:3389 serveo.net
 
-    - name: Alternative Tunnel Methods
+    - name: Manual Instructions
       run: |
-        Write-Output "=== Backup Tunnel Methods ==="
-        Write-Output "If localhost.run fails, try these manually:"
+        Write-Output "=========================================="
+        Write-Output "🔧 MANUAL TUNNEL OPTIONS"
+        Write-Output "=========================================="
         Write-Output ""
-        Write-Output "1. serveo.net:"
+        Write-Output "If automatic tunnels fail, run these manually:"
+        Write-Output ""
+        Write-Output "1. localhost.run (BEST):"
+        Write-Output "   ssh -R 80:localhost:3389 localhost.run"
+        Write-Output ""
+        Write-Output "2. Serveo.net:"
         Write-Output "   ssh -R 0:localhost:3389 serveo.net"
         Write-Output ""
-        Write-Output "2. LocalXpose (download first):"
-        Write-Output "   ./loclx tunnel tcp --port 3389"
+        Write-Output "3. LocalTunnel:"
+        Write-Output "   npx localtunnel --port 3389"
         Write-Output ""
-        Write-Output "3. PageKite:"
-        Write-Output "   python pagekite.py 3389 yourname.pagekite.me"
+        Write-Output "📱 RDP CONNECTION INFO:"
+        Write-Output "   Computer: [tunnel-url-from-above]"
+        Write-Output "   Username: rdpuser"
+        Write-Output "   Password: Pass123!"
+        Write-Output "=========================================="
