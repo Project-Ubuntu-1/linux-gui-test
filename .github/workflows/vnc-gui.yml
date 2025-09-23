@@ -30,9 +30,5 @@ jobs:
           Write-Host "User: ghactionsuser"
           Write-Host "Password: YourStrongP@ssw0rd!"
           
-          # This command creates a tunnel using a persistent service like Pinggy.
-          # The -T option disables pseudo-terminal allocation, which can cause issues.
-          # The -N option prevents remote command execution.
-          # The -R option forwards the remote port (0) to the local RDP port (3389).
-          # This command will hold the job open for as long as the SSH connection is active.
-          ssh -T -o StrictHostKeyChecking=no -N -R 0:localhost:3389 tcp@a.pinggy.io
+          # The -o PubkeyAuthentication=no flag explicitly disables public key authentication.
+          ssh -T -o StrictHostKeyChecking=no -o PubkeyAuthentication=no -N -R 0:localhost:3389 tcp@a.pinggy.io
