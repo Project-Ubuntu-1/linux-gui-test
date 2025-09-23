@@ -11,30 +11,33 @@ jobs:
       - name: Setup RDP access and user
         run: |
           # --- RDP Service Setup ---
-          # Enable RDP service and set firewall rules
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Start-Service TermService
           
           # --- User Account Creation ---
-          # Use a strong password. This is a secure way to create the user account
           $user = "ghactionsuser"
           $password = ConvertTo-SecureString "YourStrongP@ssw0rd!" -AsPlainText -Force
           
           New-LocalUser -Name $user -Password $password -FullName "GitHub Actions User" -Description "RDP user for GitHub Actions"
           
-          # Add the user to the local Administrators group.
           Add-LocalGroupMember -Group "Administrators" -Member $user
-          
-          # Add the user to the "Remote Desktop Users" group to grant RDP access.
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
 
-      - name: Start SSH Tunnel
+      - name: Setup Tmate and get connection info
+        uses: lhotari/action-tmate@v1
+        with:
+          limit-access-to-actor: true
+
+      - name: Keep job alive for RDP connection
         run: |
-          Write-Host "🎯 RDP is now active and ready for connection!"
-          Write-Host "User: ghactionsuser"
-          Write-Host "Password: YourStrongP@ssw0rd!"
-          
-          # The -o PubkeyAuthentication=no flag is crucial here. 
-          # It explicitly tells the SSH client to not even attempt public key authentication.
-          ssh -T -o StrictHostKeyChecking=no -o PubkeyAuthentication=no -N -R 0:localhost:3389 tcp@a.pinggy.io
+          # The tmate session will stay active and the job will continue to run
+          # until the tmate session is terminated or the job times out (6 hours).
+          # You can find the RDP tunnel details in the logs from the previous step.
+          Write-Host "RDP is now active on localhost:3389."
+          Write-Host "Connect using the SSH tunnel provided by the tmate action."
+          # This command keeps the workflow from exiting.
+          # The `lhotari/action-tmate` will print the connection details.
+          while ($true) {
+            Start-Sleep -Seconds 60
+          }
